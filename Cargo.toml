@@ -1,5 +1,5 @@
 [package]
-name = "3d-webrender"
+name = "lib3d-webrender"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.87"
