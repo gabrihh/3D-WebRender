@@ -14,7 +14,10 @@ pub async fn start() -> Result<(), JsValue> {
     let width = canvas.width();
     let height = canvas.height();
 
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
+        ..Default::default()
+    });
 
     let surface = instance
         .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
@@ -43,7 +46,12 @@ pub async fn start() -> Result<(), JsValue> {
         .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
     let caps = surface.get_capabilities(&adapter);
-    let format = caps.formats.iter().copied().find(|f| f.is_srgb()).unwrap_or(caps.formats[0]);
+    let format = caps
+        .formats
+        .iter()
+        .copied()
+        .find(|f| f.is_srgb())
+        .unwrap_or(caps.formats[0]);
 
     let config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -120,7 +128,9 @@ async fn render_loop(
             }
         };
 
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("encoder"),
