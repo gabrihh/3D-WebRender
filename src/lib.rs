@@ -15,7 +15,7 @@ pub async fn start() -> Result<(), JsValue> {
     let height = canvas.height();
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
+        backends: wgpu::Backends::GL,
         ..Default::default()
     });
 
@@ -25,7 +25,7 @@ pub async fn start() -> Result<(), JsValue> {
 
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
+            power_preference: wgpu::PowerPreference::LowPower,
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
         })
