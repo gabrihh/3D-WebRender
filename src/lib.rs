@@ -18,8 +18,6 @@ struct Mesh {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
-    position: Vec3,
-    rotation: Vec3,
 }
 
 #[wasm_bindgen]
@@ -30,6 +28,8 @@ pub struct Renderer {
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     meshes: Vec<Mesh>,
+    clear_color: wgpu::Color,
+    view_projection: Mat4,
 }
 
 #[wasm_bindgen]
@@ -80,6 +80,13 @@ impl Renderer {
             uniform_buffer,
             uniform_bind_group,
             meshes: Vec::new(),
+            clear_color: wgpu::Color {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 1.0,
+            },
+            view_projection: Mat4::IDENTITY,
         })
     }
 
@@ -102,31 +109,49 @@ impl Renderer {
             vertex_buffer,
             index_buffer,
             index_count: indices.len() as u32,
-            position: Vec3::ZERO,
-            rotation: Vec3::ZERO,
         };
 
         self.meshes.push(mesh);
         (self.meshes.len() - 1) as u32
     }
 
-    pub fn set_position(&mut self, id: u32, x: f32, y: f32, z: f32) {
-        if let Some(mesh) = self.meshes.get_mut(id as usize) {
-            mesh.position = Vec3::new(x, y, z);
+    pub fn set_clear_color(&mut self, r: f32, g: f32, b: f32, a: f32) {
+        self.clear_color = wgpu::Color {
+            r: r as f64,
+            g: g as f64,
+            b: b as f64,
+            a: a as f64,
+        };
+    }
+
+    pub fn set_view_projection(&mut self, mvp: &[f32]) {
+        if mvp.len() == 16 {
+            self.view_projection = Mat4::from_cols_array(
+                mvp.try_into().unwrap_or(&[0.0; 16]),
+            );
         }
     }
 
-    pub fn set_rotation(&mut self, id: u32, x: f32, y: f32, z: f32) {
-        if let Some(mesh) = self.meshes.get_mut(id as usize) {
-            mesh.rotation = Vec3::new(x, y, z);
-        }
-    }
+    pub fn draw_mesh(&mut self, id: u32, model: &[f32]) {
+        let mesh = match self.meshes.get(id as usize) {
+            Some(m) => m,
+            None => return,
+        };
 
-    pub fn render(&mut self) {
-        let aspect = self.context.config.width as f32 / self.context.config.height as f32;
+        let model_mat = if model.len() == 16 {
+            Mat4::from_cols_array(model.try_into().unwrap_or(&[0.0; 16]))
+        } else {
+            Mat4::IDENTITY
+        };
 
-        let proj = Mat4::perspective_rh(45.0_f32.to_radians(), aspect, 0.1, 100.0);
-        let view = Mat4::look_at_rh(Vec3::new(0.0, 0.0, 5.0), Vec3::ZERO, Vec3::Y);
+        let mvp = self.view_projection * model_mat;
+
+        let uniforms = Uniforms {
+            mvp: mvp.to_cols_array_2d(),
+        };
+        self.context
+            .queue
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
         let frame = match self.context.surface.get_current_texture() {
             Ok(f) => f,
@@ -156,12 +181,7 @@ impl Renderer {
                     view: &view_texture,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.05,
-                            g: 0.05,
-                            b: 0.1,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(self.clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -179,28 +199,9 @@ impl Renderer {
 
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-
-            for mesh in &self.meshes {
-                let model = Mat4::from_translation(mesh.position)
-                    * Mat4::from_euler(
-                        glam::EulerRot::XYZ,
-                        mesh.rotation.x,
-                        mesh.rotation.y,
-                        mesh.rotation.z,
-                    );
-                let mvp = proj * view * model;
-
-                let uniforms = Uniforms {
-                    mvp: mvp.to_cols_array_2d(),
-                };
-                self.context
-                    .queue
-                    .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
-
-                pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-            }
+            pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+            pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.draw_indexed(0..mesh.index_count, 0, 0..1);
         }
 
         self.context.queue.submit(Some(encoder.finish()));
@@ -218,6 +219,55 @@ impl Renderer {
             .configure(&self.context.device, &self.context.config);
         self.depth_view = create_depth(&self.context);
     }
+}
+
+#[wasm_bindgen]
+pub fn make_perspective(fov: f32, aspect: f32, near: f32, far: f32) -> Vec<f32> {
+    Mat4::perspective_rh(fov, aspect, near, far)
+        .to_cols_array()
+        .to_vec()
+}
+
+#[wasm_bindgen]
+pub fn make_look_at(ex: f32, ey: f32, ez: f32, tx: f32, ty: f32, tz: f32) -> Vec<f32> {
+    Mat4::look_at_rh(
+        Vec3::new(ex, ey, ez),
+        Vec3::new(tx, ty, tz),
+        Vec3::Y,
+    )
+    .to_cols_array()
+    .to_vec()
+}
+
+#[wasm_bindgen]
+pub fn make_translation(x: f32, y: f32, z: f32) -> Vec<f32> {
+    Mat4::from_translation(Vec3::new(x, y, z))
+        .to_cols_array()
+        .to_vec()
+}
+
+#[wasm_bindgen]
+pub fn make_rotation(x: f32, y: f32, z: f32) -> Vec<f32> {
+    Mat4::from_euler(glam::EulerRot::XYZ, x, y, z)
+        .to_cols_array()
+        .to_vec()
+}
+
+#[wasm_bindgen]
+pub fn make_scale(x: f32, y: f32, z: f32) -> Vec<f32> {
+    Mat4::from_scale(Vec3::new(x, y, z))
+        .to_cols_array()
+        .to_vec()
+}
+
+#[wasm_bindgen]
+pub fn multiply_matrices(a: &[f32], b: &[f32]) -> Vec<f32> {
+    if a.len() != 16 || b.len() != 16 {
+        return vec![0.0; 16];
+    }
+    let ma = Mat4::from_cols_array(a.try_into().unwrap());
+    let mb = Mat4::from_cols_array(b.try_into().unwrap());
+    (ma * mb).to_cols_array().to_vec()
 }
 
 fn create_buffer(
@@ -297,9 +347,6 @@ pub async fn start() -> Result<(), JsValue> {
 
     let renderer = Rc::new(RefCell::new(Renderer::new(canvas).await?));
 
-    let (vertices, indices) = cube_data();
-    renderer.borrow_mut().create_mesh(&vertices, &indices);
-
     let on_resize = {
         let renderer = renderer.clone();
         let closure = Closure::<dyn FnMut()>::new(move || {
@@ -322,59 +369,6 @@ pub async fn start() -> Result<(), JsValue> {
         .unwrap();
     on_resize.forget();
 
-    let last = Rc::new(RefCell::new(window.performance().unwrap().now()));
-    schedule_frame(renderer, last, window);
+    std::mem::forget(renderer);
     Ok(())
-}
-
-fn schedule_frame(
-    renderer: Rc<RefCell<Renderer>>,
-    last: Rc<RefCell<f64>>,
-    window: web_sys::Window,
-) {
-    let r = renderer.clone();
-    let l = last.clone();
-    let w = window.clone();
-
-    let closure = Closure::once(move || {
-        let now = w.performance().unwrap().now();
-        let _dt = ((now - *l.borrow()) / 1000.0) as f32;
-        *l.borrow_mut() = now;
-
-        let mut renderer = r.borrow_mut();
-        let rot = now as f32 * 0.001;
-        renderer.set_rotation(0, 0.0, rot, 0.0);
-        renderer.render();
-
-        schedule_frame(r.clone(), l.clone(), w.clone());
-    });
-
-    window
-        .request_animation_frame(closure.as_ref().unchecked_ref())
-        .unwrap();
-    closure.forget();
-}
-
-fn cube_data() -> (Vec<f32>, Vec<u16>) {
-    let vertices: Vec<f32> = vec![
-        -1.0, -1.0, -1.0,  0.0, 0.0, 1.0,
-         1.0, -1.0, -1.0,  0.0, 1.0, 1.0,
-         1.0,  1.0, -1.0,  0.0, 1.0, 0.0,
-        -1.0,  1.0, -1.0,  1.0, 1.0, 0.0,
-        -1.0, -1.0,  1.0,  1.0, 0.0, 0.0,
-         1.0, -1.0,  1.0,  1.0, 0.0, 1.0,
-         1.0,  1.0,  1.0,  1.0, 1.0, 1.0,
-        -1.0,  1.0,  1.0,  0.0, 0.0, 0.0,
-    ];
-
-    let indices: Vec<u16> = vec![
-        0, 1, 2,  0, 2, 3,
-        4, 6, 5,  4, 7, 6,
-        0, 3, 7,  0, 7, 4,
-        1, 5, 6,  1, 6, 2,
-        0, 4, 5,  0, 5, 1,
-        3, 2, 6,  3, 6, 7,
-    ];
-
-    (vertices, indices)
-            }
+                        }
