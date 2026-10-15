@@ -2,7 +2,7 @@
 name = "3d-webrender"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.87"   
+rust-version = "1.87"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -12,7 +12,8 @@ wasm-bindgen = "0.2.128"
 js-sys = "0.3.105"
 
 wgpu = { version = "30.0.1", default-features = false, features = [
-    "webgl",          
+    "webgl",
+    "webgpu",
 ] }
 
 glam = "0.30"
