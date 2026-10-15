@@ -1,4 +1,3 @@
-
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
@@ -72,7 +71,11 @@ pub async fn create_context(canvas: HtmlCanvasElement) -> Result<RenderContext, 
     })
 }
 
-pub fn create_pipeline(context: &RenderContext, shader_source: &str) -> wgpu::RenderPipeline {
+pub fn create_pipeline(
+    context: &RenderContext,
+    shader_source: &str,
+    uniform_layout: &wgpu::BindGroupLayout,
+) -> wgpu::RenderPipeline {
     let shader = context
         .device
         .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -84,7 +87,7 @@ pub fn create_pipeline(context: &RenderContext, shader_source: &str) -> wgpu::Re
         .device
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("pipeline_layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[uniform_layout],
             push_constant_ranges: &[],
         });
 
@@ -147,4 +150,4 @@ fn vertex_layout() -> wgpu::VertexBufferLayout<'static> {
         step_mode: wgpu::VertexStepMode::Vertex,
         attributes: &ATTRS,
     }
-      }
+        }
