@@ -306,7 +306,7 @@ fn schedule_frame(
 
     let closure = Closure::once(move || {
         let now = w.performance().unwrap().now();
-        let dt = ((now - *l.borrow()) / 1000.0) as f32;
+        let _dt = ((now - *l.borrow()) / 1000.0) as f32;
         *l.borrow_mut() = now;
 
         let mut renderer = r.borrow_mut();
