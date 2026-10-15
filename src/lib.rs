@@ -291,10 +291,31 @@ pub async fn start() -> Result<(), JsValue> {
     let canvas = document.get_element_by_id("canvas").unwrap();
     let canvas: HtmlCanvasElement = canvas.dyn_into()?;
 
+    let width = window.inner_width().unwrap().as_f64().unwrap() as u32;
+    let height = window.inner_height().unwrap().as_f64().unwrap() as u32;
+    canvas.set_width(width);
+    canvas.set_height(height);
+
     let renderer = Rc::new(RefCell::new(Renderer::new(canvas).await?));
 
     let (vertices, indices) = cube_data();
     renderer.borrow_mut().create_mesh(&vertices, &indices);
+
+    let on_resize = {
+        let renderer = renderer.clone();
+        let closure = Closure::<dyn FnMut()>::new(move || {
+            let w = web_sys::window().unwrap();
+            let width = w.inner_width().unwrap().as_f64().unwrap() as u32;
+            let height = w.inner_height().unwrap().as_f64().unwrap() as u32;
+            renderer.borrow_mut().resize(width, height);
+        });
+        closure
+    };
+
+    window
+        .add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref())
+        .unwrap();
+    on_resize.forget();
 
     let last = Rc::new(RefCell::new(window.performance().unwrap().now()));
     schedule_frame(renderer, last, window);
@@ -316,7 +337,7 @@ fn schedule_frame(
         *l.borrow_mut() = now;
 
         let mut renderer = r.borrow_mut();
-        let rot = renderer.meshes.first().map(|_| now as f32 * 0.001).unwrap_or(0.0);
+        let rot = now as f32 * 0.001;
         renderer.set_rotation(0, 0.0, rot, 0.0);
         renderer.render();
 
@@ -342,13 +363,13 @@ fn cube_data() -> (Vec<f32>, Vec<u16>) {
     ];
 
     let indices: Vec<u16> = vec![
-        0, 2, 1, 0, 3, 2,
-        4, 5, 6, 4, 6, 7,
-        0, 1, 5, 0, 5, 4,
-        3, 7, 6, 3, 6, 2,
-        0, 4, 7, 0, 7, 3,
-        1, 2, 6, 1, 6, 5,
+        0, 1, 2,  0, 2, 3,
+        4, 6, 5,  4, 7, 6,
+        0, 3, 7,  0, 7, 4,
+        1, 5, 6,  1, 6, 2,
+        0, 4, 5,  0, 5, 1,
+        3, 2, 6,  3, 6, 7,
     ];
 
     (vertices, indices)
-    }
+                        }
