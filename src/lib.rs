@@ -1,7 +1,6 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlCanvasElement;
-use wgpu::util::DeviceExt;
 
 #[wasm_bindgen(start)]
 pub async fn start() -> Result<(), JsValue> {
@@ -15,9 +14,11 @@ pub async fn start() -> Result<(), JsValue> {
     let width = canvas.width();
     let height = canvas.height();
 
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
 
-    let surface = instance.create_surface(wgpu::SurfaceTarget::Canvas(canvas))?;
+    let surface = instance
+        .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
+        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
@@ -29,13 +30,17 @@ pub async fn start() -> Result<(), JsValue> {
         .ok_or_else(|| JsValue::from_str("Nenhum adapter encontrado"))?;
 
     let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: Some("device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
-            memory_hints: wgpu::MemoryHints::default(),
-        })
-        .await?;
+        .request_device(
+            &wgpu::DeviceDescriptor {
+                label: Some("device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                memory_hints: wgpu::MemoryHints::default(),
+            },
+            None,
+        )
+        .await
+        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
     let caps = surface.get_capabilities(&adapter);
     let format = caps.formats.iter().copied().find(|f| f.is_srgb()).unwrap_or(caps.formats[0]);
@@ -62,7 +67,7 @@ pub async fn start() -> Result<(), JsValue> {
 fn create_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("shader"),
-        source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SHADER)),
     });
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -70,13 +75,13 @@ fn create_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::
         layout: None,
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: Some("vs_main"),
+            entry_point: "vs_main",
             buffers: &[],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: Some("fs_main"),
+            entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState {
                 format,
                 blend: Some(wgpu::BlendState::REPLACE),
