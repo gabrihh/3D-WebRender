@@ -36,8 +36,6 @@ pub struct Renderer {
 impl Renderer {
     pub async fn new(canvas: HtmlCanvasElement) -> Result<Renderer, JsValue> {
         let context = create_context(canvas).await?;
-        let pipeline = create_pipeline(&context, SHADER);
-        let depth_view = create_depth(&context);
 
         let uniform_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("uniforms"),
@@ -71,6 +69,9 @@ impl Renderer {
                 resource: uniform_buffer.as_entire_binding(),
             }],
         });
+
+        let pipeline = create_pipeline(&context, SHADER, &uniform_bind_group_layout);
+        let depth_view = create_depth(&context);
 
         Ok(Renderer {
             context,
@@ -181,7 +182,12 @@ impl Renderer {
 
             for mesh in &self.meshes {
                 let model = Mat4::from_translation(mesh.position)
-                    * Mat4::from_euler(glam::EulerRot::XYZ, mesh.rotation.x, mesh.rotation.y, mesh.rotation.z);
+                    * Mat4::from_euler(
+                        glam::EulerRot::XYZ,
+                        mesh.rotation.x,
+                        mesh.rotation.y,
+                        mesh.rotation.z,
+                    );
                 let mvp = proj * view * model;
 
                 let uniforms = Uniforms {
@@ -276,7 +282,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
-#[wasm_bindgen]
+#[wasm_bindgen(start)]
 pub async fn start() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
 
@@ -310,6 +316,8 @@ fn schedule_frame(
         *l.borrow_mut() = now;
 
         let mut renderer = r.borrow_mut();
+        let rot = renderer.meshes.first().map(|_| now as f32 * 0.001).unwrap_or(0.0);
+        renderer.set_rotation(0, 0.0, rot, 0.0);
         renderer.render();
 
         schedule_frame(r.clone(), l.clone(), w.clone());
@@ -343,4 +351,4 @@ fn cube_data() -> (Vec<f32>, Vec<u16>) {
     ];
 
     (vertices, indices)
-           }
+    }
