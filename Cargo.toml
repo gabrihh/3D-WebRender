@@ -36,3 +36,6 @@ winit = { version = "0.30.12", default-features = false, features = [
 opt-level = "s"
 lto = true
 strip = true
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
