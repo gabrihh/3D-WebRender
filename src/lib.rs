@@ -291,10 +291,9 @@ pub async fn start() -> Result<(), JsValue> {
     let canvas = document.get_element_by_id("canvas").unwrap();
     let canvas: HtmlCanvasElement = canvas.dyn_into()?;
 
-    let width = window.inner_width().unwrap().as_f64().unwrap() as u32;
-    let height = window.inner_height().unwrap().as_f64().unwrap() as u32;
-    canvas.set_width(width);
-    canvas.set_height(height);
+    let rect = canvas.get_bounding_client_rect();
+    canvas.set_width(rect.width() as u32);
+    canvas.set_height(rect.height() as u32);
 
     let renderer = Rc::new(RefCell::new(Renderer::new(canvas).await?));
 
@@ -305,9 +304,15 @@ pub async fn start() -> Result<(), JsValue> {
         let renderer = renderer.clone();
         let closure = Closure::<dyn FnMut()>::new(move || {
             let w = web_sys::window().unwrap();
-            let width = w.inner_width().unwrap().as_f64().unwrap() as u32;
-            let height = w.inner_height().unwrap().as_f64().unwrap() as u32;
-            renderer.borrow_mut().resize(width, height);
+            let doc = w.document().unwrap();
+            let canvas = doc.get_element_by_id("canvas").unwrap();
+            let canvas: HtmlCanvasElement = canvas.dyn_into().unwrap();
+            let rect = canvas.get_bounding_client_rect();
+            canvas.set_width(rect.width() as u32);
+            canvas.set_height(rect.height() as u32);
+            renderer
+                .borrow_mut()
+                .resize(rect.width() as u32, rect.height() as u32);
         });
         closure
     };
@@ -372,4 +377,4 @@ fn cube_data() -> (Vec<f32>, Vec<u16>) {
     ];
 
     (vertices, indices)
-                        }
+            }
