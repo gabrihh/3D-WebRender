@@ -265,7 +265,7 @@ pub fn multiply_matrices(a: &[f32], b: &[f32]) -> Vec<f32> {
     (ma * mb).to_cols_array().to_vec()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_create_mesh(vertices_ptr: *const f32, vertices_len: usize, indices_ptr: *const u16, indices_len: usize) -> u32 {
     let vertices = unsafe { std::slice::from_raw_parts(vertices_ptr, vertices_len) };
     let indices = unsafe { std::slice::from_raw_parts(indices_ptr, indices_len) };
@@ -274,47 +274,47 @@ pub extern "C" fn as_create_mesh(vertices_ptr: *const f32, vertices_len: usize, 
     id
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_set_clear_color(r: f32, g: f32, b: f32, a: f32) {
     with_renderer(|rr| rr.set_clear_color(r, g, b, a));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_set_view_projection(ptr: *const f32) {
     let mvp = unsafe { std::slice::from_raw_parts(ptr, 16) };
     with_renderer(|r| r.set_view_projection(mvp));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_draw_mesh(id: u32, ptr: *const f32) {
     let model = unsafe { std::slice::from_raw_parts(ptr, 16) };
     with_renderer(|r| r.draw_mesh(id, model));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_resize(width: u32, height: u32) {
     with_renderer(|r| r.resize(width, height));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_make_perspective(fov: f32, aspect: f32, near: f32, far: f32, out_ptr: *mut f32) {
     let m = Mat4::perspective_rh(fov, aspect, near, far);
     unsafe { std::ptr::copy_nonoverlapping(m.to_cols_array().as_ptr(), out_ptr, 16); }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_make_look_at(ex: f32, ey: f32, ez: f32, tx: f32, ty: f32, tz: f32, out_ptr: *mut f32) {
     let m = Mat4::look_at_rh(Vec3::new(ex, ey, ez), Vec3::new(tx, ty, tz), Vec3::Y);
     unsafe { std::ptr::copy_nonoverlapping(m.to_cols_array().as_ptr(), out_ptr, 16); }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_make_rotation(x: f32, y: f32, z: f32, out_ptr: *mut f32) {
     let m = Mat4::from_euler(glam::EulerRot::XYZ, x, y, z);
     unsafe { std::ptr::copy_nonoverlapping(m.to_cols_array().as_ptr(), out_ptr, 16); }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn as_multiply_matrices(a_ptr: *const f32, b_ptr: *const f32, out_ptr: *mut f32) {
     let a = unsafe { std::slice::from_raw_parts(a_ptr, 16) };
     let b = unsafe { std::slice::from_raw_parts(b_ptr, 16) };
