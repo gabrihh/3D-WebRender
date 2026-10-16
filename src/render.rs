@@ -114,7 +114,7 @@ pub fn create_pipeline(
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
-                front_face: wgpu::FrontFace::Cw,
+                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
                 ..Default::default()
             },
